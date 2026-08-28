@@ -1,3 +1,4 @@
+const bcrypt = require('bcryptjs');
 const { DataTypes, Op } = require('sequelize');
 const sequelize = require('../config/database');
 
@@ -117,10 +118,12 @@ async function seedDatabase() {
   const users = await User.findAll();
   if (users.length === 0) {
     const activeSituation = await Situation.findOne({ where: { name: 'Ativo' } });
+    const adminPasswordHash = await bcrypt.hash('admin123', 10);
+
     await User.create({
       name: 'Admin da Loja',
       email: 'admin@artisanstore.com',
-      passwordHash: 'admin123',
+      passwordHash: adminPasswordHash,
       role: 'admin',
       situationId: activeSituation?.id || 1,
     });

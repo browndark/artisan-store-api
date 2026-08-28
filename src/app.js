@@ -1,9 +1,38 @@
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const { Op } = require('./models');
 const { User, Situation, Category, Product, ProductImage } = require('./models');
 
 const app = express();
+const JWT_SECRET = process.env.JWT_SECRET || 'artisan_store_secret_key';
+
+const toSafeUser = (user) => {
+  if (!user) return null;
+  const plainUser = user.toJSON ? user.toJSON() : user;
+  const { passwordHash, ...safeUser } = plainUser;
+  return safeUser;
+};
+
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+
+  if (!token) {
+    return res.status(401).json({ message: 'Token de autenticação obrigatório.' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    return next();
+  } catch (error) {
+    return res.status(401).json({ message: 'Token inválido ou expirado.' });
+  }
+};
 
 app.use(cors());
 app.use(express.json());
@@ -30,7 +59,7 @@ app.get('/api/categories', async (req, res) => {
   }
 });
 
-app.get('/api/users', async (req, res) => {
+app.get('/api/users', authenticateToken, async (req, res) => {
   try {
     const users = await User.findAll({
       attributes: { exclude: ['passwordHash'] },
@@ -43,6 +72,23 @@ app.get('/api/users', async (req, res) => {
   }
 });
 
+app.get('/api/profile', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user.id, {
+      attributes: { exclude: ['passwordHash'] },
+      include: [{ model: Situation, as: 'situation' }],
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'Usuário não encontrado.' });
+    }
+
+    return res.json({ user: toSafeUser(user) });
+  } catch (error) {
+    return res.status(500).json({ message: 'Erro ao buscar perfil', error: error.message });
+  }
+});
+
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { name, email, password, role = 'customer' } = req.body;
@@ -51,21 +97,30 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ message: 'Nome, email e senha são obrigatórios.' });
     }
 
-    const userExists = await User.findOne({ where: { email } });
+    const normalizedEmail = String(email).trim().toLowerCase();
+    if (password.length < 6) {
+      return res.status(400).json({ message: 'A senha deve ter pelo menos 6 caracteres.' });
+    }
+
+    const userExists = await User.findOne({ where: { email: normalizedEmail } });
     if (userExists) {
       return res.status(409).json({ message: 'Já existe um usuário com esse email.' });
     }
 
+    const passwordHash = await bcrypt.hash(password, 10);
+
     const createdUser = await User.create({
-      name,
-      email,
-      passwordHash: password,
+      name: name.trim(),
+      email: normalizedEmail,
+      passwordHash,
       role,
       situationId: 1,
     });
 
-    const { passwordHash, ...safeUser } = createdUser.toJSON();
-    return res.status(201).json({ message: 'Usuário criado com sucesso.', user: safeUser });
+    return res.status(201).json({
+      message: 'Usuário criado com sucesso.',
+      user: toSafeUser(createdUser),
+    });
   } catch (error) {
     return res.status(500).json({ message: 'Erro ao registrar usuário', error: error.message });
   }
@@ -79,17 +134,32 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(400).json({ message: 'Email e senha são obrigatórios.' });
     }
 
-    const user = await User.findOne({ where: { email, passwordHash: password } });
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const user = await User.findOne({ where: { email: normalizedEmail } });
 
     if (!user) {
       return res.status(401).json({ message: 'Credenciais inválidas.' });
     }
 
-    const { passwordHash, ...safeUser } = user.toJSON();
+    const passwordMatches = await bcrypt.compare(password, user.passwordHash);
+    if (!passwordMatches) {
+      return res.status(401).json({ message: 'Credenciais inválidas.' });
+    }
+
+    const token = jwt.sign(
+      {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+      },
+      JWT_SECRET,
+      { expiresIn: '1d' }
+    );
+
     return res.json({
       message: 'Login realizado com sucesso.',
-      token: 'demo-token-for-' + safeUser.email,
-      user: safeUser,
+      token,
+      user: toSafeUser(user),
     });
   } catch (error) {
     return res.status(500).json({ message: 'Erro ao realizar login', error: error.message });
@@ -121,7 +191,7 @@ app.get('/api/products', async (req, res) => {
       order: [['id', 'ASC']],
     });
 
-    res.json({
+    return res.json({
       data: rows,
       total: count,
       page: Number(page),
@@ -129,7 +199,7 @@ app.get('/api/products', async (req, res) => {
       pages: Math.ceil(count / Number(limit)),
     });
   } catch (error) {
-    res.status(500).json({ message: 'Erro ao buscar produtos', error: error.message });
+    return res.status(500).json({ message: 'Erro ao buscar produtos', error: error.message });
   }
 });
 
@@ -153,7 +223,7 @@ app.get('/api/products/:id', async (req, res) => {
   }
 });
 
-app.post('/api/products', async (req, res) => {
+app.post('/api/products', authenticateToken, async (req, res) => {
   try {
     const { name, description, price, stock, featured, categoryId, situationId } = req.body;
 
@@ -177,7 +247,7 @@ app.post('/api/products', async (req, res) => {
   }
 });
 
-app.put('/api/products/:id', async (req, res) => {
+app.put('/api/products/:id', authenticateToken, async (req, res) => {
   try {
     const product = await Product.findByPk(req.params.id);
 
@@ -192,7 +262,7 @@ app.put('/api/products/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/products/:id', async (req, res) => {
+app.delete('/api/products/:id', authenticateToken, async (req, res) => {
   try {
     const product = await Product.findByPk(req.params.id);
 
