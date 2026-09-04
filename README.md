@@ -37,5 +37,11 @@ API REST para uma loja de produtos artesanais, com usuários, situações, categ
 - POST /api/auth/register
 - POST /api/auth/login
 
+## Regras de acesso
+
+- O cadastro público sempre cria usuários com a função `customer`.
+- `POST`, `PUT` e `DELETE` de produtos exigem um token JWT de um administrador.
+- A listagem de produtos aceita `page` a partir de 1 e `limit` entre 1 e 100.
+
 ## Exemplo de dados
 A API já vem com situações, categorias e alguns produtos iniciais para testes.

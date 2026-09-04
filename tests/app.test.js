@@ -58,3 +58,37 @@ test('POST /api/auth/login deve retornar token JWT válido', async () => {
   assert.equal(response.body.user.email, email);
 });
 
+test('POST /api/auth/register deve ignorar tentativa de criar usuário admin', async () => {
+  const email = uniqueEmail();
+  const response = await request(app)
+    .post('/api/auth/register')
+    .send({ name: 'Cliente Seguro', email, password: 'Senha@123', role: 'admin' });
+
+  assert.equal(response.status, 201);
+  assert.equal(response.body.user.role, 'customer');
+});
+
+test('POST /api/products deve bloquear clientes', async () => {
+  const email = uniqueEmail();
+  await request(app)
+    .post('/api/auth/register')
+    .send({ name: 'Cliente', email, password: 'Senha@123' });
+
+  const login = await request(app)
+    .post('/api/auth/login')
+    .send({ email, password: 'Senha@123' });
+
+  const response = await request(app)
+    .post('/api/products')
+    .set('Authorization', `Bearer ${login.body.token}`)
+    .send({ name: 'Produto não autorizado', price: 10, categoryId: 1 });
+
+  assert.equal(response.status, 403);
+});
+
+test('GET /api/products deve rejeitar paginação inválida', async () => {
+  const response = await request(app).get('/api/products?page=0&limit=101');
+
+  assert.equal(response.status, 400);
+});
+

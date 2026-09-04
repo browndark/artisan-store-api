@@ -34,6 +34,14 @@ const authenticateToken = (req, res, next) => {
   }
 };
 
+const requireAdmin = (req, res, next) => {
+  if (req.user?.role !== 'admin') {
+    return res.status(403).json({ message: 'Acesso permitido apenas para administradores.' });
+  }
+
+  return next();
+};
+
 app.use(cors());
 app.use(express.json());
 
@@ -91,7 +99,7 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
 
 app.post('/api/auth/register', async (req, res) => {
   try {
-    const { name, email, password, role = 'customer' } = req.body;
+    const { name, email, password } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Nome, email e senha são obrigatórios.' });
@@ -113,7 +121,7 @@ app.post('/api/auth/register', async (req, res) => {
       name: name.trim(),
       email: normalizedEmail,
       passwordHash,
-      role,
+      role: 'customer',
       situationId: 1,
     });
 
@@ -169,7 +177,14 @@ app.post('/api/auth/login', async (req, res) => {
 app.get('/api/products', async (req, res) => {
   try {
     const { categoryId, situationId, search, featured, page = 1, limit = 10 } = req.query;
-    const offset = (Number(page) - 1) * Number(limit);
+    const parsedPage = Number(page);
+    const parsedLimit = Number(limit);
+
+    if (!Number.isInteger(parsedPage) || parsedPage < 1 || !Number.isInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 100) {
+      return res.status(400).json({ message: 'Página deve ser um inteiro positivo e limite deve estar entre 1 e 100.' });
+    }
+
+    const offset = (parsedPage - 1) * parsedLimit;
 
     const where = {};
     if (categoryId) where.categoryId = Number(categoryId);
@@ -186,7 +201,7 @@ app.get('/api/products', async (req, res) => {
         { model: Situation, as: 'situation' },
         { model: ProductImage, as: 'images' },
       ],
-      limit: Number(limit),
+      limit: parsedLimit,
       offset,
       order: [['id', 'ASC']],
     });
@@ -194,9 +209,9 @@ app.get('/api/products', async (req, res) => {
     return res.json({
       data: rows,
       total: count,
-      page: Number(page),
-      limit: Number(limit),
-      pages: Math.ceil(count / Number(limit)),
+      page: parsedPage,
+      limit: parsedLimit,
+      pages: Math.ceil(count / parsedLimit),
     });
   } catch (error) {
     return res.status(500).json({ message: 'Erro ao buscar produtos', error: error.message });
@@ -223,7 +238,7 @@ app.get('/api/products/:id', async (req, res) => {
   }
 });
 
-app.post('/api/products', authenticateToken, async (req, res) => {
+app.post('/api/products', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { name, description, price, stock, featured, categoryId, situationId } = req.body;
 
@@ -247,7 +262,7 @@ app.post('/api/products', authenticateToken, async (req, res) => {
   }
 });
 
-app.put('/api/products/:id', authenticateToken, async (req, res) => {
+app.put('/api/products/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const product = await Product.findByPk(req.params.id);
 
@@ -262,7 +277,7 @@ app.put('/api/products/:id', authenticateToken, async (req, res) => {
   }
 });
 
-app.delete('/api/products/:id', authenticateToken, async (req, res) => {
+app.delete('/api/products/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const product = await Product.findByPk(req.params.id);
 
