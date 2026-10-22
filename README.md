@@ -2,6 +2,16 @@
 
 API REST para uma loja de produtos artesanais, com usuários, situações, categorias e produtos.
 
+## Apresentação e avaliação
+
+Materiais preparados para apresentação e avaliação do projeto:
+
+- [Documentação completa (PDF)](docs/apresentacao/Documentacao.pdf)
+- [Coleção de requisições do Postman (21 testes)](docs/apresentacao/Artisan-Store.postman_collection.json) — importe o arquivo no Postman para executar os testes da API.
+- [Documentação da API (Markdown)](DOCUMENTACAO_API.md)
+
+Para executar a coleção, inicie a API com `npm start` e mantenha o servidor ativo em `http://localhost:3000`.
+
 ## Tecnologias
 - Node.js
 - Express

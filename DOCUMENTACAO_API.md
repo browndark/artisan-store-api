@@ -1,5 +1,13 @@
 # Documentação da API Artisan Store
 
+## Materiais para apresentação e testes
+
+- [Documentação completa do projeto (PDF)](docs/apresentacao/Documentacao.pdf)
+- [Coleção do Postman para importar e testar a API](docs/apresentacao/Artisan-Store.postman_collection.json)
+- [README do projeto](README.md)
+
+Para executar os testes da coleção, inicie a API com `npm start` e deixe o servidor ativo em `http://localhost:3000`. Depois, importe o arquivo JSON no Postman.
+
 ## 1. Visão geral
 
 A Artisan Store API é uma API REST desenvolvida para gerenciar uma loja de produtos artesanais. O sistema permite cadastrar usuários, autenticar acessos, controlar categorias, situações e produtos, além de manter a gestão de estoque com filtros e paginação.
@@ -34,6 +42,10 @@ artisan-store-api/
 ├── package.json
 ├── README.md
 ├── DOCUMENTACAO_API.md
+├── docs/
+│   └── apresentacao/
+│       ├── Documentacao.pdf
+│       └── Artisan-Store.postman_collection.json
 └── database/
     └── artisan_store.db
 ```
