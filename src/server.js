@@ -12,7 +12,7 @@ async function startServer() {
 
     console.log('✅ Banco conectado');
 
-    await sequelize.sync({ alter: true });
+    await sequelize.sync();
 
     console.log('✅ Banco sincronizado');
 
